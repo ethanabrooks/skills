@@ -2,7 +2,7 @@ from typing import Iterable
 
 import numpy as np
 
-from skill.array_group import ArrayGroup, Key, X
+from skills.array_group import ArrayGroup, Key, X
 
 
 def get_index(value):
@@ -44,12 +44,14 @@ class ReplayBuffer:
 
     def modulate(self, key: Key):
         if isinstance(key, slice):
-            key = np.arange(key.start or 0, 0 if key.stop is None else key.stop, key.step)
+            key = np.arange(key.start or 0,
+                            0 if key.stop is None else key.stop, key.step)
         return (key + self.pos) % self.maxlen
 
     def sample(self, batch_size: int, seq_len=None):
         # indices are negative because indices are relative to pos
-        indices = np.random.randint(-len(self), 0, size=batch_size)  # type: np.ndarray
+        indices = np.random.randint(
+            -len(self), 0, size=batch_size)  # type: np.ndarray
         if seq_len is not None:
             indices = np.array([np.arange(i, i + seq_len) for i in indices])
         assert isinstance(indices, np.ndarray)
@@ -57,7 +59,7 @@ class ReplayBuffer:
 
     def append(self, x: X):
         if self.buffer is None:
-            self.buffer = ArrayGroup.shape_like(x=x, pre_shape=(self.maxlen,))
+            self.buffer = ArrayGroup.shape_like(x=x, pre_shape=(self.maxlen, ))
         stop = get_index(x)
         self[:stop] = x
         if self.pos + stop >= self.maxlen:

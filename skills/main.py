@@ -1,11 +1,11 @@
 """
 the algorithm
 """
-from skill.gridworld import Gridworld
-from skill.model_based import RewardOptimizer
+from skills.gridworld import GoalGridworld
+from skills.model_free import Trainer
 
 if __name__ == '__main__':
-    ENV = Gridworld(
+    ENV = GoalGridworld(
         desc=[
             '◻◻◻◻◻',
             '◻◻◻◻◻',
@@ -19,8 +19,7 @@ if __name__ == '__main__':
     )
     # actions=np.array([[0, 1], [0, 0], [0, -1]]),
     # action_strings="▶s◀")
-    RewardOptimizer(visit_func=lambda s: float(s == 0),
-                    env=ENV).train()
+    Trainer(env=ENV, len_action_history=3).train()
 
     # _R, _Q, _D = optimize_reward(
     #     lambda s: float(s == 0),

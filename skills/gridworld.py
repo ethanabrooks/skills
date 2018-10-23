@@ -1,14 +1,14 @@
 #! /usr/bin/env python
 # stdlib
-from collections import namedtuple
 import sys
 import time
-from typing import Dict, Iterable, Tuple, Container
+from collections import namedtuple
+from typing import Container, Dict, Iterable, Tuple
 
+import numpy as np
 # third party
 from gym import utils
 from gym.envs.toy_text.discrete import DiscreteEnv
-import numpy as np
 from six import StringIO
 
 Transition = namedtuple('Transition', 'probability new_state reward terminal')
@@ -98,12 +98,12 @@ class Gridworld(DiscreteEnv):
                 trans: Transition
                 for trans in transitions:
                     self._transition_matrix[s1, a, trans.
-                        new_state] = trans.probability
+                                            new_state] = trans.probability
                     self._reward_matrix[s1, a] = trans.reward
                     if trans.terminal:
                         for a in range(self.nA):
                             self._transition_matrix[trans.new_state, a, trans.
-                                new_state] = 1
+                                                    new_state] = 1
                             self._reward_matrix[trans.new_state, a] = 0
                             assert not np.any(self._transition_matrix > 1)
 
@@ -128,10 +128,18 @@ class GoalGridworld(Gridworld):
 
     def set_goal(self, goal: int):
         self.goal = goal
-        self.P = {s: [t.replace(reward=float(t.new_state == goal),
-                                terminal=t.terminal or t.new_state == goal) for t in
-                      transitions]
-                  for s, transitions in self.P.items()}
+        self.P = {
+            s: {
+                a: [
+                    t._replace(
+                        reward=float(t.new_state == goal),
+                        terminal=t.terminal or t.new_state == goal)
+                    for t in transitions
+                ]
+                for a, transitions in Pa.items()
+            }
+            for s, Pa in self.P.items()
+        }
         self._transition_matrix = None
 
     def optimal_reward(self, start: np.ndarray):

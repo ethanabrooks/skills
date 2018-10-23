@@ -6,12 +6,15 @@ import time
 
 from skills.gridworld import GoalGridworld
 from skills.replay_buffer import ReplayBuffer
+import gym
+
+from skills.util import get_wrapped_attr
 
 
 class Trainer:
     def __init__(
             self,
-            env: GoalGridworld,
+            env: gym.Env,
             len_action_history: int,
             alpha: float = .001,
             gamma: float = .99,
@@ -22,8 +25,9 @@ class Trainer:
         self.alpha = alpha
         self.epsilon = epsilon
         self.env = env
-        self.nS = env.nS
-        self.nA = env.nA
+        self.nS = get_wrapped_attr(env, 'nS')
+        self.nA = get_wrapped_attr(env, 'nA')
+        self.optimal_reward = get_wrapped_attr(env, 'optimal_reward')
         self.buffer = ReplayBuffer(maxlen=self.nS * 10)
 
     def iterate_array(self, rank: int, dim: int):
@@ -63,12 +67,13 @@ class Trainer:
         gamma = self.gamma
         s1 = env.reset()
         actions = deque(
-            [env.nA] * len(
+            [self.nA] * len(
                 A.shape),  # the nA^th action is the special stop action
             maxlen=len(A.shape))
         G = 0
         for i in itertools.count():
-            if np.random.random() < epsilon:
+            random = np.random.random()
+            if random < epsilon:
                 a = env.action_space.sample()
             else:
                 a = np.argmax(Q[s1])
@@ -88,13 +93,13 @@ class Trainer:
         returns_queue = deque(maxlen=10)
         len_action_history = self.len_action_history
         env = self.env
-        Q = np.zeros((env.nS, env.nA))
-        A = np.zeros([env.nA + 1] * (len_action_history + 1))
+        Q = np.zeros((self.nS, self.nA))
+        A = np.zeros([self.nA + 1] * (len_action_history + 1))
         while True:
             returns = self.run_episode(Q=Q, A=A)
             print(returns)
             returns_queue.append(returns)
-            if np.mean(returns_queue) == env.optimal_reward:
+            if np.mean(returns_queue) == self.optimal_reward:
                 action_groups = self.group_actions(
                     A=A, history=tuple([0] * len_action_history))
                 import ipdb

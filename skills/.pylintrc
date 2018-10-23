@@ -6,7 +6,7 @@ init-hook="
 persistent=yes
 
 [MESSAGES CONTROL]
-disable=missing-docstring,too-many-statements,too-many-locals,invalid-name,inconsistent-return-statements
+disable=missing-docstring,too-many-statements,too-many-locals,invalid-name,inconsistent-return-statements,too-many-instance-attributes
 
 [BASIC]
 include-naming-hint=yes

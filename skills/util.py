@@ -1,4 +1,6 @@
 import numpy as np
+import gym
+from typing import Callable
 
 
 def softmax(X, theta=1.0, axis=None):
@@ -46,3 +48,17 @@ def softmax(X, theta=1.0, axis=None):
         p = p.flatten()
 
     return p
+
+
+def get_wrapped_attr(env: gym.Env, attr: str):
+    return getattr(unwrap_env(env, lambda e: hasattr(e, attr)), attr)
+
+
+def unwrap_env(env: gym.Env, condition: Callable[[gym.Env], bool]):
+    while not condition(env):
+        try:
+            env = env.env
+        except AttributeError:
+            raise RuntimeError(
+                f"env {env} has no children that meet condition.")
+    return env

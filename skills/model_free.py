@@ -15,7 +15,7 @@ class Trainer:
             len_action_history: int,
             alpha: float = .001,
             gamma: float = .99,
-            epsilon: float = .01 ,
+            epsilon: float = .01,
     ):
         self.len_action_history = len_action_history
         self.gamma = gamma
@@ -62,8 +62,10 @@ class Trainer:
         alpha = self.alpha
         gamma = self.gamma
         s1 = env.reset()
-        actions = deque([env.nA] * len(A.shape), # the nA^th action is the special stop action
-                maxlen=len(A.shape))
+        actions = deque(
+            [env.nA] * len(
+                A.shape),  # the nA^th action is the special stop action
+            maxlen=len(A.shape))
         G = 0
         for i in itertools.count():
             if np.random.random() < epsilon:
@@ -87,7 +89,7 @@ class Trainer:
         len_action_history = self.len_action_history
         env = self.env
         Q = np.zeros((env.nS, env.nA))
-        A = np.zeros([env.nA + 1] * (len_action_history + 1)) 
+        A = np.zeros([env.nA + 1] * (len_action_history + 1))
         while True:
             returns = self.run_episode(Q=Q, A=A)
             print(returns)

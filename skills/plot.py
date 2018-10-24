@@ -64,7 +64,10 @@ def plot_values(env, D, delPi, delQ, delD):
     ipdb.set_trace()
 
 
-def plot(X: np.ndarray, layout=None, filename='values.html') -> None:
+def plot(X: np.ndarray,
+         layout=None,
+         subplot_titles=None,
+         filename='values.html') -> None:
     if layout is None:
         layout = dict()
     *lead_dims, _, _ = X.shape
@@ -84,8 +87,9 @@ def plot(X: np.ndarray, layout=None, filename='values.html') -> None:
         else:
             raise RuntimeError
 
-    fig = plotly.tools.make_subplots(
-        *lead_dims, subplot_titles=[str(j - 1) for _, j, _ in iterate_x()])
+    if subplot_titles is None:
+        subplot_titles = [str(j - 1) for _, j, _ in iterate_x()]
+    fig = plotly.tools.make_subplots(*lead_dims, subplot_titles=subplot_titles)
 
     for i, j, matrix in iterate_x():
         trace = go.Heatmap(z=matrix, colorscale='Viridis')

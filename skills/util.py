@@ -54,6 +54,10 @@ def get_wrapped_attr(env: gym.Env, attr: str):
     return getattr(unwrap_env(env, lambda e: hasattr(e, attr)), attr)
 
 
+def call_wrapped_method(env: gym.Env, method: str, kwargs: dict):
+    return get_wrapped_attr(env=env, attr=method)(**kwargs)
+
+
 def unwrap_env(env: gym.Env, condition: Callable[[gym.Env], bool]):
     while not condition(env):
         try:

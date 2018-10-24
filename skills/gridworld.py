@@ -7,7 +7,7 @@ from typing import Container, Dict, Iterable, Tuple
 
 import numpy as np
 # third party
-from gym import utils
+from gym import utils, spaces
 from gym.envs.toy_text.discrete import DiscreteEnv
 from six import StringIO
 
@@ -71,7 +71,9 @@ class Gridworld(DiscreteEnv):
         for row in out:
             print("".join(row))
         if self.lastaction is not None:
-            print(f"({self.action_strings[self.lastaction]})\n")
+            print(
+                f"({self.action_strings[self.lastaction]}) {self.decode(self.s)}\n"
+            )
         else:
             print("\n")
         # No need to return anything for human
@@ -125,6 +127,7 @@ class GoalGridworld(Gridworld):
         super().__init__(**kwargs)
         self.goal = None
         self.set_goal(self.observation_space.sample())
+        self.goal_space = self.observation_space
 
     def set_goal(self, goal: int):
         self.goal = goal
@@ -141,9 +144,6 @@ class GoalGridworld(Gridworld):
             for s, Pa in self.P.items()
         }
         self._transition_matrix = None
-
-    def optimal_reward(self, start: np.ndarray):
-        return np.sum(np.abs(self.goal - start))
 
 
 if __name__ == '__main__':

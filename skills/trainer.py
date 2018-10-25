@@ -2,7 +2,7 @@
 from collections import defaultdict, deque
 import itertools
 import time
-from typing import Iterable, List, Sequence, Sized, Union
+from typing import Iterable, List, Sequence, Sized
 
 # third party
 import numpy as np
@@ -10,7 +10,6 @@ import plotly
 import plotly.graph_objs as go
 
 # first party
-from skills.plot import plot
 from skills.replay_buffer import ReplayBuffer
 
 
@@ -21,11 +20,9 @@ class Trainer:
             alpha: float = .1,
             gamma: float = .99,
             epsilon: float = .1,
-            action_window: int = 10,
             n_action_groups: int = 5,
             slack_factor: int = 1,
     ):
-        self.action_window = min(action_window, env._max_episode_steps)
         self.gamma = gamma
         self.slack = gamma**slack_factor
         self.alpha = alpha
@@ -67,7 +64,6 @@ class Trainer:
         return s2, rewards, terminal, info
 
     def run_episode(self, s1: int, Q: np.ndarray, action_groups: List):
-        env = self.env
         epsilon = self.epsilon
         alpha = self.alpha
         gamma = self.gamma
@@ -75,49 +71,31 @@ class Trainer:
 
         episode_rewards = []
         episode_actions = []
-        for i in itertools.count():
-            try:
-                random = np.random.random()
-                if random < epsilon:
-                    a = np.random.randint(nA)
-                else:
-                    a = int(argmax(Q[s1]))
-                if a >= self.nA:
-                    actions = action_groups[a - self.nA]
-                else:
-                    actions = [a]
+        #debugging
+        if self.render:
+            self.env.render()
+            time.sleep(.5)
+        for _ in itertools.count():
+            random = np.random.random()
+            if random < epsilon:
+                a = np.random.randint(nA)
+            else:
+                a = int(argmax(Q[s1]))
+            if a >= self.nA:
+                actions = action_groups[a - self.nA]
+            else:
+                actions = [a]
 
-                # if all([
-                # np.allclose(self.goal, (4, 2)),
-                # np.allclose(self.s1, (1, 2)),
-                # s1 == self.encode(*self.s1),
-                # actions == (1, 1, 1),
-                # self.env._elapsed_steps < 7,
-                # ]):
-                # self.render = True
-                # import ipdb
-                # ipdb.set_trace()
-
-                s2, R, t, _ = self.step(actions)
-                episode_actions.extend(actions)
-                episode_rewards.extend(R)
-                r = self.discounted_cumulative(R)
-                Q[s1, a] += alpha * (
-                    r + (not t) * gamma * np.max(Q[s2]) - Q[s1, a])
-                # _Q = Q.copy()
-                # _Q[s1, a] += alpha * (
-                # r + (not t) * gamma * np.max(Q[s2]) - Q[s1, a])
-
-                # Q[:] = _Q
-                s1 = s2
-                if t:
-                    returns = self.discounted_cumulative(episode_rewards)
-                    return episode_actions, returns
-            except KeyboardInterrupt:
-                print(self.gridworld.decode(self.gridworld.goal))
-                self.plotQ(Q)
-                import ipdb
-                ipdb.set_trace()
+            s2, R, t, _ = self.step(actions)
+            episode_actions.extend(actions)
+            episode_rewards.extend(R)
+            r = self.discounted_cumulative(R)
+            Q[s1, a] += alpha * (r +
+                                 (not t) * gamma * np.max(Q[s2]) - Q[s1, a])
+            s1 = s2
+            if t:
+                returns = self.discounted_cumulative(episode_rewards)
+                return episode_actions, returns
 
     def train_goal(self):
         action_groups = sorted(self.A.keys(), key=lambda k: self.A[k])
@@ -130,7 +108,11 @@ class Trainer:
         self.gridworld.desc[self.gridworld.decode(s1)] = 'S'
 
         self.s1 = np.array(self.gridworld.decode(s1))
-        self.goal = np.clip(self.s1 + np.array([3, 0]), np.zeros(2),
+        # self.goal = self.gridworld.decode(
+        # self.gridworld.observation_space.sample())
+        # offset = np.array([np.random.randint(-3, 3), np.random.randint(0, 1)])
+        offset = np.array([2, 0])
+        self.goal = np.clip(self.s1 + offset, np.zeros(2),
                             np.array(self.gridworld.desc.shape) - 1)
         goal = self.gridworld.encode(*self.goal)
         self.gridworld.set_goal(self.gridworld.encode(*self.goal))
@@ -156,6 +138,8 @@ class Trainer:
     def train(self, iterations: int = 20, baseline: bool = False):
         times = []
         for i in range(iterations):
+            print(i, end=' ')
+            # self.render = i == 13
             actions, time_to_train = self.train_goal()
             times.append(time_to_train)
             if not baseline:

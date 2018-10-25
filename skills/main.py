@@ -30,9 +30,13 @@ def main(iterations: int, slack: int):
     # actions=np.array([[0, 1], [0, 0], [0, -1]]),
     # action_strings="▶s◀")
     def train(baseline: bool):
-        return Trainer(env=ENV,slack_factor=slack).train(iterations=iterations, baseline=baseline)
+        return Trainer(
+            env=ENV, slack_factor=slack).train(
+                iterations=iterations, baseline=baseline)
 
+    print('experiment')
     e_x, e_y = zip(*enumerate(train(baseline=False)))
+    print('baseline')
     b_x, b_y = zip(*enumerate(train(baseline=True)))
     fig = go.Figure(
         data=[
@@ -41,6 +45,7 @@ def main(iterations: int, slack: int):
         ],
         layout=dict(yaxis=dict(type='log')))
     plotly.offline.plot(fig, auto_open=True)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

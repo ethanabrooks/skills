@@ -1,10 +1,14 @@
 import itertools
+import time
+import plotly.graph_objs as go
+
 from collections import deque, defaultdict
 
 import numpy as np
 from typing import Iterable, Union, Sequence, List, Sized
 
 from skills.replay_buffer import ReplayBuffer
+import plotly
 
 from skills.plot import plot
 
@@ -57,22 +61,34 @@ class Trainer:
         self.buffer = ReplayBuffer(maxlen=self.nS * 10)
         self.A = defaultdict(lambda: 0)
         self.n_action_groups = n_action_groups
-
-    def iterate_array(self, rank: int, dim: int):
-        if rank == 0:
-            yield tuple()
-        for i in range(dim):
-            for tup in self.iterate_array(rank=rank - 1, dim=dim):
-                yield (i, ) + tup
+        self.render = False
 
     def count_substrs(self, string: Sequence):
         for i in range(len(string)):
             for j in range(i + 2, len(string) + 1):
                 self.A[tuple(string[i:j])] += 1
 
-        # return [[a] + tail
-        #         for a, b in enumerate(A[history]) if b > threshold
-        #         for tail in self.count_substrs(A, history[1:] + (a,))]
+    def discounted_cumulative(self, rewards):
+        return sum(r * self.gamma**i for i, r in enumerate(rewards))
+
+    def step(self, actions: Iterable[int]):
+        rewards = []
+        terminal = False
+        info = dict()
+        for action in actions:
+            s2, r, t, i = self.env.step(action)
+            #debugging
+            if self.render:
+                print(actions)
+                self.env.render()
+                time.sleep(.5)
+
+            rewards.append(r)
+            info.update(i)
+            if t:
+                terminal = True
+                break
+        return s2, rewards, terminal, info
 
     def run_episode(self, s1: int, Q: np.ndarray, action_groups: List):
         env = self.env
@@ -81,8 +97,8 @@ class Trainer:
         gamma = self.gamma
         nA = Q.shape[-1]
 
-        rewards = []
-        actions = []
+        episode_rewards = []
+        episode_actions = []
         for i in itertools.count():
             try:
                 random = np.random.random()
@@ -91,39 +107,60 @@ class Trainer:
                 else:
                     a = int(argmax(Q[s1]))
                 if a >= self.nA:
-                    A = action_groups[a - self.nA]
+                    actions = action_groups[a - self.nA]
                 else:
-                    A = [a]
-                for a in A:
-                    actions.append(a)
-                    s2, r, t, i = env.step(a)
-                    rewards.append(r)
-                    Q[s1, a] += alpha * (r + gamma * np.max(Q[s2]) - Q[s1, a])
-                    s1 = s2
-                    if t:
-                        Q[s2] += alpha * r
-                        returns = sum(
-                            r * self.gamma**i for i, r in enumerate(rewards))
-                        return actions, returns
+                    actions = [a]
+
+                if all([
+                        np.allclose(self.goal, (4, 2)),
+                        np.allclose(self.s1, (1, 2)),
+                        s1 == self.encode(*self.s1),
+                        actions == (1, 1, 1),
+                        self.env._elapsed_steps < 7,
+                ]):
+                    self.render = True
+                    import ipdb
+                    ipdb.set_trace()
+
+                s2, R, t, _ = self.step(actions)
+                episode_actions.extend(actions)
+                episode_rewards.extend(R)
+                r = self.discounted_cumulative(R)
+                # Q[s1, a] += alpha * (
+                # r + (not t) * gamma * np.max(Q[s2]) - Q[s1, a])
+                _Q = Q.copy()
+                _Q[s1, a] += alpha * (
+                    r + (not t) * gamma * np.max(Q[s2]) - Q[s1, a])
+
+                Q[:] = _Q
+                s1 = s2
+                if t:
+                    returns = self.discounted_cumulative(episode_rewards)
+                    return episode_actions, returns
             except KeyboardInterrupt:
                 print(self.gridworld.decode(self.gridworld.goal))
-                plot(Q.max(axis=1).reshape(self.gridworld.desc.shape))
+                self.plotQ(Q)
                 import ipdb
                 ipdb.set_trace()
 
     def train_goal(self):
         action_groups = sorted(self.A.keys(), key=lambda k: self.A[k])
         action_groups = action_groups[-self.n_action_groups:]
-        returns_queue = deque(maxlen=10)
+        returns_queue = deque([0] * 10, maxlen=10)
         env = self.env
         nA = self.nA + len(action_groups)
         Q = np.zeros((self.nS, nA))
         s1 = env.reset()
-        optimal_reward = self.optimal_reward(s1)
+        self.gridworld.desc[self.gridworld.decode(s1)] = 'S'
 
-        _s1 = np.array(self.gridworld.decode(s1))
-        _goal = np.clip(s1 + np.array([3, 0]), 0, 9)
-        self.gridworld.set_goal(self.gridworld.encode(*_goal))
+        self.s1 = np.array(self.gridworld.decode(s1))
+        self.goal = np.clip(self.s1 + np.array([3, 0]), np.zeros(2),
+                            np.array(self.gridworld.desc.shape) - 1)
+        print('s1', self.s1, 'goal', self.goal)
+        goal = self.gridworld.encode(*self.goal)
+        self.gridworld.set_goal(self.gridworld.encode(*self.goal))
+
+        optimal_reward = self.optimal_reward(s1, goal)
 
         for i in itertools.count():
             actions, returns = self.run_episode(
@@ -134,40 +171,61 @@ class Trainer:
             self.gridworld.s = s1
 
             returns_queue.append(returns)
+            # print(returns, optimal_reward)
             if np.allclose(returns_queue, optimal_reward):
-                # plot(Q.max(axis=1).reshape(self.gridworld.desc.shape))
+                print('episodes', i)
                 print()
-                print(i, self.gridworld.goal)
+                self.gridworld.desc[self.s1] = '◻'
                 return actions
 
     def train(self):
-        for _ in itertools.count():
+        for i in itertools.count():
             actions = self.train_goal()
             self.count_substrs(actions)
 
-    def optimal_reward(self, s1: int):
+    def optimal_reward(self, s1: int, goal: int):
         s1 = np.array(self.gridworld.decode(s1))
-        goal = np.array(self.gridworld.decode(self.gridworld.goal))
+        goal = np.array(self.gridworld.decode(goal))
         min_steps = np.sum(np.abs(goal - s1))
-        return self.gamma**(min_steps - 1)
+        return self.gamma**min_steps
+
+    def decode(self, s):
+        return self.gridworld.decode(s)
+
+    def encode(self, *s):
+        return self.gridworld.encode(*s)
 
     def plotQ(self, Q):
-        env = self.env
-        Q_reshaped = np.flip(
-            Q.reshape(env.unwrapped.desc.shape + (self.nA, )), axis=0)
-        layout = {
-            f'yaxis{i + 1}': dict(
-                ticktext=tuple(reversed(range(self.nS))),
-                tickvals=tuple(range(self.nS)))
-            for i in range(self.nA)
-        }
+        y, x = zip(self.s1, self.goal)
+        matrix = Q.max(axis=1).reshape(self.gridworld.desc.shape)
+        markers = go.Scatter(
+            x=x,
+            y=y,
+            mode='text',
+            text=['s1', 'goal'],
+            textposition='middle center')
 
-        plot(
-            Q_reshaped.transpose((2, 0, 1)),
-            layout=layout,
-            subplot_titles=env.unwrapped.action_strings)
-        import ipdb
-        ipdb.set_trace()
+        q_values = go.Heatmap(z=matrix, colorscale='Viridis')
+        plotly.offline.plot(
+            [markers, q_values],
+            auto_open=True,
+        )
+        # env = self.env
+        # Q_reshaped = np.flip(
+        # Q.reshape(env.unwrapped.desc.shape + (self.nA, )), axis=0)
+        # layout = {
+        # f'yaxis{i + 1}': dict(
+        # ticktext=tuple(reversed(range(self.nS))),
+        # tickvals=tuple(range(self.nS)))
+        # for i in range(self.nA)
+        # }
+
+        # plot(
+        # Q_reshaped.transpose((2, 0, 1)),
+        # layout=layout,
+        # subplot_titles=env.unwrapped.action_strings)
+        # import ipdb
+        # ipdb.set_trace()
 
 
 def argmax(x: np.ndarray, axis=-1) -> np.ndarray:

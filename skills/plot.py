@@ -92,7 +92,9 @@ def plot(X: np.ndarray,
     fig = plotly.tools.make_subplots(*lead_dims, subplot_titles=subplot_titles)
 
     for i, j, matrix in iterate_x():
-        trace = go.Heatmap(z=matrix, colorscale='Viridis')
+        import ipdb
+        ipdb.set_trace()
+        trace = go.Heatmap(z=matrix.T, colorscale='Viridis')
         # z=np.flip(matrix, axis=(0, 1)), colorscale='Viridis')
         fig.append_trace(trace, i, j)
 

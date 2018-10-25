@@ -4,13 +4,13 @@ the algorithm
 from gym.wrappers import TimeLimit
 
 from skills.gridworld import GoalGridworld
-from skills.model_free import Trainer
+from skills.trainer import Trainer
 import numpy as np
 
 if __name__ == '__main__':
     np.random.seed(0)
 
-    desc = ['◻' * 10] * 10
+    desc = ['◻' * 5] * 5
     ENV = TimeLimit(
         max_episode_steps=10,
         env=GoalGridworld(
@@ -19,6 +19,7 @@ if __name__ == '__main__':
             terminal='T',
             start_states='◻',
         ))
+    ENV.seed(0)
     # actions=np.array([[0, 1], [0, 0], [0, -1]]),
     # action_strings="▶s◀")
     Trainer(env=ENV).train()

@@ -35,19 +35,23 @@ class Gridworld(DiscreteEnv):
         self._transition_matrix = None
         self._reward_matrix = None
 
-        def transition_tuple(i: int, j: int) -> Tuple[float, int, float, bool]:
-            i = np.clip(i, 0, nrows - 1)  # type: int
-            j = np.clip(j, 0, ncols - 1)  # type: int
+        def transition_tuple(i: int, j: int, action: np.ndarray
+                             ) -> Tuple[float, int, float, bool]:
             letter = str(_desc[i, j])
+            new_state = self.encode(
+                *np.clip(
+                    np.array([i, j]) + action,
+                    a_min=np.zeros(2),
+                    a_max=np.array(_desc.shape) - 1), )
             return Transition(
                 probability=1.,
-                new_state=self.encode(i, j),
+                new_state=new_state,
                 reward=rewards.get(letter, 0),
                 terminal=letter in terminal)
 
         transitions = {
             self.encode(i, j): {
-                a: [transition_tuple(*np.array([i, j]) + action)]
+                a: [transition_tuple(i, j, action)]
                 for a, action in enumerate(actions)
             }
             for i in range(nrows) for j in range(ncols)
@@ -85,12 +89,12 @@ class Gridworld(DiscreteEnv):
         nrow, ncol = self.desc.shape
         assert 0 <= i < nrow
         assert 0 <= j < ncol
-        return i * ncol + j
+        return int(i * ncol + j)
 
     def decode(self, s: int) -> Tuple[int, int]:
         nrow, ncol = self.desc.shape
         assert 0 <= s < nrow * ncol
-        return s // nrow, s % ncol
+        return int(s // nrow), int(s % ncol)
 
     def generate_matrices(self):
         self._transition_matrix = np.zeros((self.nS, self.nA, self.nS))
@@ -130,19 +134,24 @@ class GoalGridworld(Gridworld):
         self.goal_space = self.observation_space
 
     def set_goal(self, goal: int):
+        if self.goal is not None:
+            self.desc[tuple(self.decode(self.goal))] = '◻'
+        self.desc[tuple(self.decode(goal))] = 'G'
         self.goal = goal
+
         self.P = {
             s: {
                 a: [
                     t._replace(
-                        reward=float(t.new_state == goal),
-                        terminal=t.terminal or t.new_state == goal)
-                    for t in transitions
+                        reward=float(s == goal),
+                        terminal=s == goal,
+                    ) for t in transitions
                 ]
                 for a, transitions in Pa.items()
             }
             for s, Pa in self.P.items()
         }
+
         self._transition_matrix = None
 
 

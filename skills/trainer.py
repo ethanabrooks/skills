@@ -1,16 +1,17 @@
+# stdlib
+from collections import defaultdict, deque
 import itertools
 import time
+from typing import Iterable, List, Sequence, Sized, Union
+
+# third party
+import numpy as np
+import plotly
 import plotly.graph_objs as go
 
-from collections import deque, defaultdict
-
-import numpy as np
-from typing import Iterable, Union, Sequence, List, Sized
-
-from skills.replay_buffer import ReplayBuffer
-import plotly
-
+# first party
 from skills.plot import plot
+from skills.replay_buffer import ReplayBuffer
 
 
 class Trainer:

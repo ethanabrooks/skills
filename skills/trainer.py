@@ -13,33 +13,6 @@ import plotly
 from skills.plot import plot
 
 
-class SubstrCounter:
-    def __init__(self, alphabet_or_size: Union[str, int], minlen: int,
-                 maxlen: int):
-        if isinstance(alphabet_or_size, str):
-            alphabet = alphabet_or_size
-        elif isinstance(alphabet_or_size, int):
-            alphabet = range(alphabet_or_size)
-        else:
-            raise TypeError('alphabet_or_size must be a string or an int')
-        self.indices = {a: i for i, a in enumerate(alphabet)}
-        self.minlen = minlen
-        self.arrays = [
-            np.zeros((len(self.alphabet), ) * i
-                     for i in range(minlen + 1, maxlen + 1))
-        ]
-        self.heap = []
-
-    def get_array(self, lenkey: int) -> np.ndarray:
-        return self.arrays[lenkey - self.minlen]
-
-    def __getitem__(self, key: Sized) -> int:
-        return self.get_array(len(key))[tuple(key)]
-
-    def __setitem__(self, key: Sized, value: int):
-        self.get_array(len(key))[tuple(key)] = value
-
-
 class Trainer:
     def __init__(
             self,
@@ -49,9 +22,11 @@ class Trainer:
             epsilon: float = .1,
             action_window: int = 10,
             n_action_groups: int = 5,
+            slack_factor: int = 1,
     ):
         self.action_window = min(action_window, env._max_episode_steps)
         self.gamma = gamma
+        self.slack = gamma**slack_factor
         self.alpha = alpha
         self.epsilon = epsilon
         self.env = env
@@ -81,7 +56,7 @@ class Trainer:
             if self.render:
                 print(actions)
                 self.env.render()
-                time.sleep(.5)
+                time.sleep(1.5 if t else .5)
 
             rewards.append(r)
             info.update(i)
@@ -111,28 +86,28 @@ class Trainer:
                 else:
                     actions = [a]
 
-                if all([
-                        np.allclose(self.goal, (4, 2)),
-                        np.allclose(self.s1, (1, 2)),
-                        s1 == self.encode(*self.s1),
-                        actions == (1, 1, 1),
-                        self.env._elapsed_steps < 7,
-                ]):
-                    self.render = True
-                    import ipdb
-                    ipdb.set_trace()
+                # if all([
+                # np.allclose(self.goal, (4, 2)),
+                # np.allclose(self.s1, (1, 2)),
+                # s1 == self.encode(*self.s1),
+                # actions == (1, 1, 1),
+                # self.env._elapsed_steps < 7,
+                # ]):
+                # self.render = True
+                # import ipdb
+                # ipdb.set_trace()
 
                 s2, R, t, _ = self.step(actions)
                 episode_actions.extend(actions)
                 episode_rewards.extend(R)
                 r = self.discounted_cumulative(R)
-                # Q[s1, a] += alpha * (
-                # r + (not t) * gamma * np.max(Q[s2]) - Q[s1, a])
-                _Q = Q.copy()
-                _Q[s1, a] += alpha * (
+                Q[s1, a] += alpha * (
                     r + (not t) * gamma * np.max(Q[s2]) - Q[s1, a])
+                # _Q = Q.copy()
+                # _Q[s1, a] += alpha * (
+                # r + (not t) * gamma * np.max(Q[s2]) - Q[s1, a])
 
-                Q[:] = _Q
+                # Q[:] = _Q
                 s1 = s2
                 if t:
                     returns = self.discounted_cumulative(episode_rewards)
@@ -156,7 +131,6 @@ class Trainer:
         self.s1 = np.array(self.gridworld.decode(s1))
         self.goal = np.clip(self.s1 + np.array([3, 0]), np.zeros(2),
                             np.array(self.gridworld.desc.shape) - 1)
-        print('s1', self.s1, 'goal', self.goal)
         goal = self.gridworld.encode(*self.goal)
         self.gridworld.set_goal(self.gridworld.encode(*self.goal))
 
@@ -172,16 +146,20 @@ class Trainer:
 
             returns_queue.append(returns)
             # print(returns, optimal_reward)
-            if np.allclose(returns_queue, optimal_reward):
-                print('episodes', i)
-                print()
+            if np.mean(returns_queue
+                       ) >= optimal_reward * self.slack:  # * self.gamma**2:
+                print('episodes', i, 'start', self.s1, 'goal', self.goal)
                 self.gridworld.desc[self.s1] = '◻'
-                return actions
+                return actions, i
 
-    def train(self):
-        for i in itertools.count():
-            actions = self.train_goal()
-            self.count_substrs(actions)
+    def train(self, iterations: int = 20, baseline: bool = False):
+        times = []
+        for i in range(iterations):
+            actions, time_to_train = self.train_goal()
+            times.append(time_to_train)
+            if not baseline:
+                self.count_substrs(actions)
+        return times
 
     def optimal_reward(self, s1: int, goal: int):
         s1 = np.array(self.gridworld.decode(s1))

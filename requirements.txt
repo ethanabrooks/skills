@@ -1,0 +1,13 @@
+appnope==0.1.0
+astroid==2.0.4
+autoflake==1.2
+gym==0.10.8
+ipdb==0.11
+ipython==7.0.1
+isort==4.3.4
+numpy==1.15.3
+plotly==3.3.0
+pylint==2.1.1
+pylint-venv==1.0
+python-language-server==0.21.2
+yapf==0.24.0

@@ -34,10 +34,10 @@ def main(iterations: int, slack: int):
             env=ENV, slack_factor=slack).train(
                 iterations=iterations, baseline=baseline)
 
-    print('experiment')
-    e_x, e_y = zip(*enumerate(train(baseline=False)))
     print('baseline')
     b_x, b_y = zip(*enumerate(train(baseline=True)))
+    print('experiment')
+    e_x, e_y = zip(*enumerate(train(baseline=False)))
     fig = go.Figure(
         data=[
             go.Scatter(x=e_x, y=e_y, name='experiment'),

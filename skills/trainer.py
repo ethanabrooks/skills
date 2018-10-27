@@ -44,33 +44,15 @@ class Trainer:
     def discounted_cumulative(self, rewards):
         return sum(r * self.gamma**i for i, r in enumerate(rewards))
 
-    def step(self, actions: Iterable[int]):
-        rewards = []
-        terminal = False
-        info = dict()
-        for action in actions:
-            s2, r, t, i = self.env.step(action)
-            #debugging
-            if self.render:
-                print(actions)
-                self.env.render()
-                time.sleep(1.5 if t else .5)
-
-            rewards.append(r)
-            info.update(i)
-            if t:
-                terminal = True
-                break
-        return s2, rewards, terminal, info
-
-    def run_episode(self, s1: int, Q: np.ndarray, action_groups: List):
+    def run_episode(self, s1: int, Q: np.ndarray, actions: List):
         epsilon = self.epsilon
         alpha = self.alpha
         gamma = self.gamma
-        nA = Q.shape[-1]
+        nA = len(actions)
 
-        episode_rewards = []
+        episode_states = []
         episode_actions = []
+        episode_rewards = []
         #debugging
         if self.render:
             self.env.render()
@@ -81,26 +63,31 @@ class Trainer:
                 a = np.random.randint(nA)
             else:
                 a = int(argmax(Q[s1]))
-            if a >= self.nA:
-                actions = action_groups[a - self.nA]
-            else:
-                actions = [a]
 
-            s2, R, t, _ = self.step(actions)
-            episode_actions.extend(actions)
-            episode_rewards.extend(R)
-            r = self.discounted_cumulative(R)
-            Q[s1, a] += alpha * (r +
-                                 (not t) * gamma * np.max(Q[s2]) - Q[s1, a])
-            s1 = s2
-            if t:
-                returns = self.discounted_cumulative(episode_rewards)
-                return episode_actions, returns
+            for action in actions[a]:
+                episode_actions.append(action)
+                episode_states.append(s1)
+                s2, r, t, _ = self.env.step(action)
+                if self.render:
+                    self.env.render()
+                    time.sleep(1.5 if t else .5)
+                episode_rewards.append(r)
+
+                for j in range(len(episode_actions), 0, -1):
+                    action_group = tuple(episode_actions[-j:])
+                    if action_group in actions:
+                        a = actions.index(action_group)
+                        Q[s1, a] += alpha * (
+                            r + (not t) * gamma**j * np.max(Q[s2]) - Q[s1, a])
+                s1 = s2
+                if t:
+                    returns = self.discounted_cumulative(episode_rewards)
+                    return episode_actions, returns
 
     def train_goal(self):
         action_groups = sorted(self.A.keys(), key=lambda k: self.A[k])
         action_groups = action_groups[-self.n_action_groups:]
-        returns_queue = deque([0] * 10, maxlen=10)
+        returns_queue = deque([0] * 8, maxlen=8)
         env = self.env
         nA = self.nA + len(action_groups)
         Q = np.zeros((self.nS, nA))
@@ -110,8 +97,8 @@ class Trainer:
         self.s1 = np.array(self.gridworld.decode(s1))
         # self.goal = self.gridworld.decode(
         # self.gridworld.observation_space.sample())
-        # offset = np.array([np.random.randint(-3, 3), np.random.randint(0, 1)])
-        offset = np.array([2, 0])
+        offset = np.array([np.random.randint(-2, 2), 0])
+        # offset = np.array([2, 0])
         self.goal = np.clip(self.s1 + offset, np.zeros(2),
                             np.array(self.gridworld.desc.shape) - 1)
         goal = self.gridworld.encode(*self.goal)
@@ -120,8 +107,8 @@ class Trainer:
         optimal_reward = self.optimal_reward(s1, goal)
 
         for i in itertools.count():
-            actions, returns = self.run_episode(
-                s1=s1, Q=Q, action_groups=action_groups)
+            actions = [(a, ) for a in range(self.nA)] + action_groups
+            actions, returns = self.run_episode(s1=s1, Q=Q, actions=actions)
 
             # reset
             env.reset()
@@ -139,7 +126,6 @@ class Trainer:
         times = []
         for i in range(iterations):
             print(i, end=' ')
-            # self.render = i == 13
             actions, time_to_train = self.train_goal()
             times.append(time_to_train)
             if not baseline:

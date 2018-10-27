@@ -38,7 +38,7 @@ class Trainer:
         self.render = False
 
     def count_substrs(self, string: Sequence):
-        min_len = 3
+        min_len = 2
         for i in range(max(0, len(string) - min_len)):
             for j in range(i + min_len, len(string)):
                 self.A[tuple(string[i:j])] += 1
@@ -91,7 +91,7 @@ class Trainer:
 
     def train_goal(self):
         def time_saved(action_seq):
-            return self.A[action_seq] * len(action_seq) - 2
+            return self.A[action_seq] * (len(action_seq) - 1)
 
         action_groups = list(sorted(self.A.keys(), key=time_saved))
         print(

@@ -8,7 +8,7 @@ from typing import Container, Dict, Iterable, Tuple
 import numpy as np
 # third party
 from gym import utils, spaces
-from gym.envs.toy_text.discrete import DiscreteEnv
+from gym.envs.toy_text.discrete import DiscreteEnv, categorical_sample
 from six import StringIO
 
 Transition = namedtuple('Transition', 'probability new_state reward terminal')
@@ -20,12 +20,14 @@ class Gridworld(DiscreteEnv):
                  terminal: Container[str],
                  rewards: Dict[str, float],
                  start_states: Container[str] = '',
+                 blocked_states: Container[str] = '',
                  actions: Iterable[np.ndarray] = np.array([
                      [0, 1],
                      [1, 0],
                      [0, -1],
                      [-1, 0],
-                 ]),
+                 ],
+                                                          dtype=int),
                  action_strings: Iterable[str] = "▶▼◀▲"):
 
         self.action_strings = np.array(tuple(action_strings))
@@ -38,14 +40,16 @@ class Gridworld(DiscreteEnv):
         def transition_tuple(i: int, j: int, action: np.ndarray
                              ) -> Tuple[float, int, float, bool]:
             letter = str(_desc[i, j])
-            new_state = self.encode(
-                *np.clip(
-                    np.array([i, j]) + action,
-                    a_min=np.zeros(2),
-                    a_max=np.array(_desc.shape) - 1), )
+            new_state = np.clip(
+                np.array([i, j], dtype=int) + action,
+                a_min=np.zeros(2, dtype=int),
+                a_max=np.array(_desc.shape, dtype=int) - 1,
+            )
+            if _desc[tuple(new_state)] in blocked_states:
+                new_state = (i, j)
             return Transition(
                 probability=1.,
-                new_state=new_state,
+                new_state=self.encode(*new_state),
                 reward=rewards.get(letter, 0),
                 terminal=letter in terminal)
 
@@ -94,7 +98,7 @@ class Gridworld(DiscreteEnv):
     def decode(self, s: int) -> Tuple[int, int]:
         nrow, ncol = self.desc.shape
         assert 0 <= s < nrow * ncol
-        return int(s // nrow), int(s % ncol)
+        return int(s // ncol), int(s % ncol)
 
     def generate_matrices(self):
         self._transition_matrix = np.zeros((self.nS, self.nA, self.nS))
@@ -153,6 +157,9 @@ class GoalGridworld(Gridworld):
         }
 
         self._transition_matrix = None
+
+    def sample_goal(self):
+        return categorical_sample(self.isd, self.np_random)
 
 
 if __name__ == '__main__':

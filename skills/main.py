@@ -16,14 +16,23 @@ from skills.trainer import Trainer
 
 
 def main(iterations: int, slack: int):
-    desc = ['◻' * 5] * 5
+    desc = [
+        '____#____',
+        '_________',
+        '____#____',
+        '#_#####_#',
+        '____#____',
+        '_________',
+        '____#____',
+    ]
     ENV = TimeLimit(
-        max_episode_steps=10,
+        max_episode_steps=15,
         env=GoalGridworld(
             desc=desc,
             rewards=dict(),
             terminal='T',
-            start_states='◻',
+            start_states='_',
+            blocked_states='#',
         ))
     ENV.seed(0)
 

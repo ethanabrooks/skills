@@ -34,7 +34,7 @@ class Trainer:
         self.buffer = ReplayBuffer(maxlen=self.nS * 10)
         self.A = defaultdict(lambda: 0)
         self.n_action_groups = n_action_groups
-        self.render = False
+        self.render = True
 
     def count_substrs(self, string: Sequence):
         for i in range(len(string)):
@@ -97,10 +97,11 @@ class Trainer:
         self.s1 = np.array(self.gridworld.decode(s1))
         # self.goal = self.gridworld.decode(
         # self.gridworld.observation_space.sample())
-        offset = np.array([np.random.randint(-2, 2), 0])
+        # offset = np.array([np.random.randint(-2, 2), 0])
         # offset = np.array([2, 0])
-        self.goal = np.clip(self.s1 + offset, np.zeros(2),
-                            np.array(self.gridworld.desc.shape) - 1)
+        _goal = self.gridworld.sample_goal()
+        self.goal = self.gridworld.decode(_goal)
+
         goal = self.gridworld.encode(*self.goal)
         self.gridworld.set_goal(self.gridworld.encode(*self.goal))
 
@@ -119,7 +120,7 @@ class Trainer:
             if np.mean(returns_queue
                        ) >= optimal_reward * self.slack:  # * self.gamma**2:
                 print('episodes', i, 'start', self.s1, 'goal', self.goal)
-                self.gridworld.desc[self.s1] = '◻'
+                self.gridworld.desc[self.gridworld.decode(self.s1)] = '_'
                 return actions, i
 
     def train(self, iterations: int = 20, baseline: bool = False):

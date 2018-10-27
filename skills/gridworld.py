@@ -132,6 +132,7 @@ class Gridworld(DiscreteEnv):
 
 class GoalGridworld(Gridworld):
     def __init__(self, **kwargs):
+        self.old_letter = None
         super().__init__(**kwargs)
         self.goal = None
         self.set_goal(self.observation_space.sample())
@@ -139,8 +140,10 @@ class GoalGridworld(Gridworld):
 
     def set_goal(self, goal: int):
         if self.goal is not None:
-            self.desc[tuple(self.decode(self.goal))] = '◻'
-        self.desc[tuple(self.decode(goal))] = 'G'
+            self.desc[tuple(self.decode(self.goal))] = self.old_letter
+        idx = tuple(self.decode(goal))
+        self.old_letter = self.desc[idx]
+        self.desc[idx] = 'G'
         self.goal = goal
 
         self.P = {

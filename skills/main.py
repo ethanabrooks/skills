@@ -17,13 +17,13 @@ from skills.trainer import Trainer
 
 def main(iterations: int, slack: int):
     desc = [
-        '____#____',
-        '_________',
-        '____#____',
-        '#_#####_#',
-        '____#____',
-        '_________',
-        '____#____',
+        '___#___',
+        '_______',
+        '___#___',
+        '#_###_#',
+        '___#___',
+        '_______',
+        '___#___',
     ]
     ENV = TimeLimit(
         max_episode_steps=15,
@@ -43,10 +43,10 @@ def main(iterations: int, slack: int):
             env=ENV, slack_factor=slack).train(
                 iterations=iterations, baseline=baseline)
 
-    print('baseline')
-    b_x, b_y = zip(*enumerate(train(baseline=True)))
     print('experiment')
     e_x, e_y = zip(*enumerate(train(baseline=False)))
+    print('baseline')
+    b_x, b_y = zip(*enumerate(train(baseline=True)))
     fig = go.Figure(
         data=[
             go.Scatter(x=e_x, y=e_y, name='experiment'),

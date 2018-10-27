@@ -4,6 +4,7 @@ import itertools
 import time
 from typing import Iterable, List, Sequence, Sized
 
+import sys
 # third party
 import numpy as np
 import plotly
@@ -34,11 +35,12 @@ class Trainer:
         self.buffer = ReplayBuffer(maxlen=self.nS * 10)
         self.A = defaultdict(lambda: 0)
         self.n_action_groups = n_action_groups
-        self.render = True
+        self.render = False
 
     def count_substrs(self, string: Sequence):
-        for i in range(len(string)):
-            for j in range(i + 2, len(string) + 1):
+        min_len = 3
+        for i in range(max(0, len(string) - min_len)):
+            for j in range(i + min_len, len(string)):
                 self.A[tuple(string[i:j])] += 1
 
     def discounted_cumulative(self, rewards):
@@ -56,7 +58,7 @@ class Trainer:
         #debugging
         if self.render:
             self.env.render()
-            time.sleep(.5)
+            time.sleep(.1)
         for _ in itertools.count():
             random = np.random.random()
             if random < epsilon:
@@ -70,7 +72,7 @@ class Trainer:
                 s2, r, t, _ = self.env.step(action)
                 if self.render:
                     self.env.render()
-                    time.sleep(1.5 if t else .5)
+                    time.sleep(1.5 if t else .1)
                 episode_rewards.append(r)
 
                 for j in range(len(episode_actions), 0, -1):
@@ -82,10 +84,22 @@ class Trainer:
                 s1 = s2
                 if t:
                     returns = self.discounted_cumulative(episode_rewards)
+                    if returns > 0:
+                        print(returns, end=' ')
+                        sys.stdout.flush()
                     return episode_actions, returns
 
     def train_goal(self):
-        action_groups = sorted(self.A.keys(), key=lambda k: self.A[k])
+        def time_saved(action_seq):
+            return self.A[action_seq] * len(action_seq) - 2
+
+        action_groups = list(sorted(self.A.keys(), key=time_saved))
+        print(
+            *sorted([(time_saved(k), ' '.join(
+                [self.gridworld.action_strings[s] for s in k]))
+                     for k in self.A]),
+            sep='\n')
+
         action_groups = action_groups[-self.n_action_groups:]
         returns_queue = deque([0] * 8, maxlen=8)
         env = self.env
@@ -106,6 +120,7 @@ class Trainer:
         self.gridworld.set_goal(self.gridworld.encode(*self.goal))
 
         optimal_reward = self.optimal_reward(s1, goal)
+        env.render()
 
         for i in itertools.count():
             actions = [(a, ) for a in range(self.nA)] + action_groups
@@ -119,14 +134,15 @@ class Trainer:
             # print(returns, optimal_reward)
             if np.mean(returns_queue
                        ) >= optimal_reward * self.slack:  # * self.gamma**2:
-                print('episodes', i, 'start', self.s1, 'goal', self.goal)
-                self.gridworld.desc[self.gridworld.decode(self.s1)] = '_'
+                self.gridworld.desc[tuple(self.s1)] = '_'
+                print('\nfinal actions:', end=' ')
+                print(' '.join(
+                    [self.gridworld.action_strings[a] for a in actions]))
                 return actions, i
 
     def train(self, iterations: int = 20, baseline: bool = False):
         times = []
         for i in range(iterations):
-            print(i, end=' ')
             actions, time_to_train = self.train_goal()
             times.append(time_to_train)
             if not baseline:

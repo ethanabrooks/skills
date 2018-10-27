@@ -56,9 +56,13 @@ def main(iterations: int, slack: int):
     plotly.offline.plot(fig, auto_open=True)
 
 
-if __name__ == '__main__':
+def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--iterations', type=int, required=True)
     parser.add_argument('-s', '--slack', type=int, required=True)
     np.random.seed(0)
     main(**vars(parser.parse_args()))
+
+
+if __name__ == '__main__':
+    cli()

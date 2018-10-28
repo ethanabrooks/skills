@@ -61,6 +61,7 @@ class Trainer:
         #debugging
         if self.render:
             self.env.render()
+            time.sleep(.1)
         for _ in itertools.count():
             random = np.random.random()
             if random < epsilon:
@@ -74,6 +75,7 @@ class Trainer:
                 s2, r, t, _ = self.env.step(action)
                 if self.render:
                     self.env.render()
+                    time.sleep(1 if t else .1)
                 episode_rewards.append(r)
 
                 for j in range(len(episode_actions), 0, -1):

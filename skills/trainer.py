@@ -36,6 +36,9 @@ class Trainer:
         self.A = defaultdict(lambda: 0)
         self.n_action_groups = n_action_groups
         self.render = False
+        self.min_steps_cache = np.inf * np.ones((self.nS, self.nS))
+        for i in range(self.nS):
+            self.min_steps_cache[i, i] = 1
 
     def count_substrs(self, string: Sequence):
         min_len = 2
@@ -58,7 +61,6 @@ class Trainer:
         #debugging
         if self.render:
             self.env.render()
-            time.sleep(.1)
         for _ in itertools.count():
             random = np.random.random()
             if random < epsilon:
@@ -72,7 +74,6 @@ class Trainer:
                 s2, r, t, _ = self.env.step(action)
                 if self.render:
                     self.env.render()
-                    time.sleep(1.5 if t else .1)
                 episode_rewards.append(r)
 
                 for j in range(len(episode_actions), 0, -1):
@@ -84,9 +85,6 @@ class Trainer:
                 s1 = s2
                 if t:
                     returns = self.discounted_cumulative(episode_rewards)
-                    if returns > 0:
-                        print(returns, end=' ')
-                        sys.stdout.flush()
                     return episode_actions, returns
 
     def train_goal(self):
@@ -119,12 +117,20 @@ class Trainer:
         goal = self.gridworld.encode(*self.goal)
         self.gridworld.set_goal(self.gridworld.encode(*self.goal))
 
+        optimal_steps = self.min_steps(s1, goal, maxdepth=self.nS)
         optimal_reward = self.optimal_reward(s1, goal)
+        print('minimum steps =', optimal_steps)
         env.render()
+        min_steps = np.inf
 
         for i in itertools.count():
             actions = [(a, ) for a in range(self.nA)] + action_groups
             actions, returns = self.run_episode(s1=s1, Q=Q, actions=actions)
+
+            if len(actions) < min_steps:
+                print(len(actions), end=' ')
+                sys.stdout.flush()
+                min_steps = len(actions)
 
             # reset
             env.reset()
@@ -149,11 +155,48 @@ class Trainer:
                 self.count_substrs(actions)
         return times
 
+    def min_steps(
+            self,
+            s1: int,
+            goal: int,
+            maxdepth: int = None,
+    ) -> int:
+        if maxdepth is None:
+            maxdepth = self.nS
+        if maxdepth == 0:
+            return np.inf
+        cache_lookup = self.min_steps_cache[s1, goal]
+        if cache_lookup < np.inf:
+            return cache_lookup
+        expectations = []
+        for a in range(self.gridworld.nA):
+            # if any([
+            # self.gridworld.decode(s1) == (0, 2) and a == 1,
+            # self.gridworld.decode(s1) == (1, 2) and a == 0,
+            # self.gridworld.decode(s1) == (1, 3) and a == 0,
+            # self.gridworld.decode(s1) == (1, 4) and a == 0,
+            # self.gridworld.decode(s1) == (1, 5) and a == 1,
+            # self.gridworld.decode(s1) == (2, 5) and a == 1,
+            # self.gridworld.decode(s1) == (3, 5) and a == 1,
+            # self.gridworld.decode(s1) == (3, 5) and a == 1,
+            # ]):
+            # desc = self.gridworld.desc.copy()
+            # desc[tuple(self.gridworld.decode(s1))] = 'X'
+            # print(self.gridworld.action_strings[a])
+            # print(desc)
+
+            expectation = 0
+            for p, s2, _, _ in self.gridworld.P[s1][a]:
+                expectation += p * self.min_steps(s2, goal, maxdepth - 1)
+            expectations.append(expectation)
+        min_steps = 1 + min(expectations)
+        self.min_steps_cache[s1, goal] = min_steps
+        # print(
+        # self.gridworld.decode(s1), self.gridworld.decode(goal), min_steps)
+        return min_steps
+
     def optimal_reward(self, s1: int, goal: int):
-        s1 = np.array(self.gridworld.decode(s1))
-        goal = np.array(self.gridworld.decode(goal))
-        min_steps = np.sum(np.abs(goal - s1))
-        return self.gamma**min_steps
+        return self.gamma**self.min_steps(s1, goal)
 
     def decode(self, s):
         return self.gridworld.decode(s)

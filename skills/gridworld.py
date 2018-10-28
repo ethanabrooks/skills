@@ -45,6 +45,7 @@ class Gridworld(DiscreteEnv):
                 a_min=np.zeros(2, dtype=int),
                 a_max=np.array(_desc.shape, dtype=int) - 1,
             )
+
             if _desc[tuple(new_state)] in blocked_states:
                 new_state = (i, j)
             return Transition(
@@ -62,6 +63,7 @@ class Gridworld(DiscreteEnv):
         }
         isd = np.isin(_desc, tuple(start_states))
         isd = isd / isd.sum()
+
         super().__init__(
             nS=_desc.size,
             nA=len(actions),

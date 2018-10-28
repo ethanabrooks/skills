@@ -2,6 +2,7 @@
 from collections import defaultdict, deque
 import itertools
 import time
+from pprint import pprint
 from typing import Iterable, List, Sequence, Sized
 
 import sys
@@ -49,8 +50,8 @@ class Trainer:
     def discounted_cumulative(self, rewards):
         return sum(r * self.gamma**i for i, r in enumerate(rewards))
 
-    def run_episode(self, s1: int, Q: np.ndarray, actions: List):
-        epsilon = self.epsilon
+    def run_episode(self, s1: int, Q: np.ndarray, actions: List, epsilon: int = None):
+        epsilon = epsilon or self.epsilon
         alpha = self.alpha
         gamma = self.gamma
         nA = len(actions)
@@ -58,10 +59,9 @@ class Trainer:
         episode_states = []
         episode_actions = []
         episode_rewards = []
-        #debugging
+        # debugging
         if self.render:
             self.env.render()
-            time.sleep(.1)
         for _ in itertools.count():
             random = np.random.random()
             if random < epsilon:
@@ -75,15 +75,18 @@ class Trainer:
                 s2, r, t, _ = self.env.step(action)
                 if self.render:
                     self.env.render()
-                    time.sleep(1 if t else .1)
-                episode_rewards.append(r)
+                    if t:
+                        time.sleep(.5)
 
-                for j in range(len(episode_actions), 0, -1):
+                episode_rewards.append(r)
+                for j in range(1, len(episode_actions) + 1):
                     action_group = tuple(episode_actions[-j:])
                     if action_group in actions:
                         a = actions.index(action_group)
-                        Q[s1, a] += alpha * (
-                            r + (not t) * gamma**j * np.max(Q[s2]) - Q[s1, a])
+                        s0 = episode_states[-j]
+
+                        Q[s0, a] += alpha * (
+                            r + (not t) * gamma**j * np.max(Q[s2]) - Q[s0, a])
                 s1 = s2
                 if t:
                     returns = self.discounted_cumulative(episode_rewards)
@@ -101,12 +104,11 @@ class Trainer:
             sep='\n')
 
         action_groups = action_groups[-self.n_action_groups:]
-        returns_queue = deque([0] * 8, maxlen=8)
+        returns_queue = deque([0] * self.nS, maxlen=self.nS)
         env = self.env
         nA = self.nA + len(action_groups)
         Q = np.zeros((self.nS, nA))
         s1 = env.reset()
-        self.gridworld.desc[self.gridworld.decode(s1)] = 'S'
 
         self.s1 = np.array(self.gridworld.decode(s1))
         # self.goal = self.gridworld.decode(
@@ -142,7 +144,6 @@ class Trainer:
             # print(returns, optimal_reward)
             if np.mean(returns_queue
                        ) >= optimal_reward * self.slack:  # * self.gamma**2:
-                self.gridworld.desc[tuple(self.s1)] = '_'
                 print('\nfinal actions:', end=' ')
                 print(' '.join(
                     [self.gridworld.action_strings[a] for a in actions]))
@@ -151,6 +152,7 @@ class Trainer:
     def train(self, iterations: int = 20, baseline: bool = False):
         times = []
         for i in range(iterations):
+            # self.render = i == 54
             actions, time_to_train = self.train_goal()
             times.append(time_to_train)
             if not baseline:
@@ -172,20 +174,8 @@ class Trainer:
             return cache_lookup
         expectations = []
         for a in range(self.gridworld.nA):
-            # if any([
-            # self.gridworld.decode(s1) == (0, 2) and a == 1,
-            # self.gridworld.decode(s1) == (1, 2) and a == 0,
-            # self.gridworld.decode(s1) == (1, 3) and a == 0,
-            # self.gridworld.decode(s1) == (1, 4) and a == 0,
-            # self.gridworld.decode(s1) == (1, 5) and a == 1,
-            # self.gridworld.decode(s1) == (2, 5) and a == 1,
-            # self.gridworld.decode(s1) == (3, 5) and a == 1,
-            # self.gridworld.decode(s1) == (3, 5) and a == 1,
-            # ]):
-            # desc = self.gridworld.desc.copy()
-            # desc[tuple(self.gridworld.decode(s1))] = 'X'
-            # print(self.gridworld.action_strings[a])
-            # print(desc)
+            desc = self.gridworld.desc.copy()
+            desc[tuple(self.gridworld.decode(s1))] = 'X'
 
             expectation = 0
             for p, s2, _, _ in self.gridworld.P[s1][a]:
@@ -193,8 +183,6 @@ class Trainer:
             expectations.append(expectation)
         min_steps = 1 + min(expectations)
         self.min_steps_cache[s1, goal] = min_steps
-        # print(
-        # self.gridworld.decode(s1), self.gridworld.decode(goal), min_steps)
         return min_steps
 
     def optimal_reward(self, s1: int, goal: int):
@@ -235,8 +223,6 @@ class Trainer:
         # Q_reshaped.transpose((2, 0, 1)),
         # layout=layout,
         # subplot_titles=env.unwrapped.action_strings)
-        # import ipdb
-        # ipdb.set_trace()
 
 
 def argmax(x: np.ndarray, axis=-1) -> np.ndarray:

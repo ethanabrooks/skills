@@ -5,6 +5,8 @@ the algorithm
 import argparse
 
 # third party
+from pprint import pprint
+
 from gym.wrappers import TimeLimit
 import numpy as np
 import plotly
@@ -16,7 +18,7 @@ from skills.gridworld import GoalGridworld
 from skills.trainer import Trainer
 
 
-def main(iterations: int, slack: int):
+def main(iterations: int, slack: int, epsilon:float):
     # desc = [
     # '___#___',
     # '_______',
@@ -27,13 +29,13 @@ def main(iterations: int, slack: int):
     # '___#___',
     # ]
     desc = [
-        '__________',
+        '_____',
     ]
     ENV = TimeLimit(
-        max_episode_steps=30,
+        max_episode_steps=len(desc[0]),
         env=GoalGridworld(
             desc=desc,
-            actions=np.array([[0, 1], [-1, 0]]),
+            actions=np.array([[0, 1], [0, -1]]),
             action_strings="▶◀",
             rewards=dict(),
             terminal='T',
@@ -50,15 +52,15 @@ def main(iterations: int, slack: int):
     # action_strings="▶s◀")
     def train(baseline: bool):
         return Trainer(
-            env=ENV, slack_factor=slack).train(
+            env=ENV, epsilon=epsilon, slack_factor=slack).train(
                 iterations=iterations, baseline=baseline)
 
-    print('baseline')
-    seed(0)
-    b_x, b_y = zip(*enumerate(train(baseline=True)))
     print('experiment')
     seed(0)
     e_x, e_y = zip(*enumerate(train(baseline=False)))
+    print('baseline')
+    seed(0)
+    b_x, b_y = zip(*enumerate(train(baseline=True)))
     fig = go.Figure(
         data=[
             go.Scatter(x=e_x, y=e_y, name='experiment'),
@@ -72,6 +74,7 @@ def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--iterations', type=int, required=True)
     parser.add_argument('-s', '--slack', type=int, required=True)
+    parser.add_argument('-e', '--epsilon', type=float, required=True)
     main(**vars(parser.parse_args()))
 
 
